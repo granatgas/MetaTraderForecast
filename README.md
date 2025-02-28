@@ -1,13 +1,3 @@
-# MetaTrader Forecast
-
-An AI-powered forex prediction system integrating deep learning with MetaTrader 4.
-
-## Features
-- Real-time price predictions using LSTM/GRU networks
-- Trading signals (Buy/Sell/Hold) with confidence levels
-- Visual indicators with customizable arrows
-- REST API server for MT4 communication
-
 ## Components
 - `server.py`: HTTP server handling MT4 requests
 - `build.py`: Neural network model building and training
@@ -56,3 +46,13 @@ Adjust the following parameters in the EA:
 
 ## Author
 GranatGas (granat.gas@gmail.com)
+
+# MetaTrader Forecast
+
+An AI-powered forex prediction system integrating deep learning with MetaTrader 4.
+
+## Features
+- Real-time price predictions using LSTM/GRU networks
+- Trading signals (Buy/Sell/Hold) with confidence levels
+- Visual indicators with customizable arrows
+- REST API server for MT4 communication
