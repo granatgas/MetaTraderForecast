@@ -1,58 +1,58 @@
-# MetaTraderForecast
-A Project that involves training, testing, evaluating and forecasting time series forex data from MetaTrader using Sockets to connect with Python.  An RNN Model of various architecture like LSTM, Bidirectional and GRU can be created. Supports CUDA Computation.
+# MetaTrader Forecast
 
-## What does the project do?
-MQL based Expert Advisors are attached to charts of trading platforms to make RNN based forecasts. All machine learning parameters can be tuned from the input interface of the EA. The model can be trained and exported as a serialized .hdf5 file. Tests are run simultaneously with initial train and the data is split based on Testing Part (in %) parameter. The model can be evaluated on any number of metrics as provided in the input screen of the EA. The model can be loaded to retrain or forecast any number of future bars. 
+An AI-powered forex prediction system integrating deep learning with MetaTrader 4.
 
-## Recurrent Neural Network Specs
-The various parameter that can be opted for tuning the ML model are -
-### RNN Architecture
-- **Long Short Term Memory** 
-- **Gated Recurrent Units**
-- **Bidirectional LSTM**
-- **Bidirectional GRU**
-### Losses
-- **Mean Sqaure Error**
-- **R^2 Score**
-### Optimizers
-- **RMSProp** (Recommended)
-- **Stochastic Gradient Descent** (Momentum can be specified)
-- **Adam**
-- **Adagrad**
-### Learning Rate
-Specify amount of change to the model during each step of this search process, or the step size
+## Features
+- Real-time price predictions using LSTM/GRU networks
+- Trading signals (Buy/Sell/Hold) with confidence levels
+- Visual indicators with customizable arrows
+- REST API server for MT4 communication
 
-### GPU Computations
-For faster computations, GPU can be used. CUDA Support is required. CuDNN implemented RNN layers are used if GPU is opted
+## Components
+- `server.py`: HTTP server handling MT4 requests
+- `build.py`: Neural network model building and training
+- `ForecastExpert.mq4`: MetaTrader 4 Expert Advisor
 
-### Input screen of EA
-
-![Inputs of EA](/assets/EA_inputs.png)
-
-## Setting up the project
-To run the forecaster, run the socketserver.py and wait for socket to be created. Now, attach the EA to the MT4/MT5 platform and specify the parameters for building the model. The predicted values are displayed on the same chart window. 
-
-`python socketserver.py`
-### Test GPU Support
-To install tensorflow-gpu use python package manager 
-
-`pip install tensorflow-gpu`
-
-If tensorflow-gpu is present, run the following commands to check
-```python
-import tensorflow as tf
-tf.test.is_gpu_available()
-```
-### Dependencies
-- Python 3.6 or higher (dev versions not recommended, use stable releases)
-- Tensorflow 1.14 or higher
+## Requirements
+- Python 3.12+
+- TensorFlow 2.x
 - Keras
+- NumPy
+- Pandas
+- MetaTrader 4
 
-**For GPU Support**
+## Setup
+1. Install Python dependencies:
+```bash
+pip install tensorflow numpy pandas scikit-learn
+```
 
-- tensorflow-gpu
-- CUDA 9.0 or higher (10.0 recommended)
-- cuDNN Library v7.4 or higher
+2. Start the prediction server:
+```bash
+python server.py
+```
 
-### Workflow
-![Forecast Workflow](/assets/MetaTraderForecasting.jpg)
+3. Install the Expert Advisor in MetaTrader 4:
+   - Copy `ForecastExpert.mq4` to your MT4 Experts folder
+   - Compile the EA in MetaTrader Editor
+   - Add the EA to your chart
+
+## Usage
+1. The EA will automatically connect to the prediction server
+2. Training data is sent to the server for model training
+3. Real-time predictions are displayed on the chart
+4. Trading signals appear as arrows:
+   - Green Up Arrow: Buy signal
+   - Red Down Arrow: Sell signal
+   - Yellow Circle: Hold signal
+
+## Configuration
+Adjust the following parameters in the EA:
+- Training period
+- Prediction bars
+- Model architecture (LSTM/GRU)
+- Learning rate
+- Training/testing split
+
+## Author
+GranatGas (granat.gas@gmail.com)

@@ -1,392 +1,193 @@
-# Python Build for training, testing and exporting model
-
-# Importing Libraries 
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import pickle
-from enum import Enum
+from tensorflow.keras.models import Sequential # type: ignore
+from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, Input # type: ignore
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error, r2_score
 
-from datetime import datetime
-
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, LSTM, CuDNNLSTM, GRU, CuDNNGRU, Bidirectional
-from keras.optimizers import SGD, RMSprop, Adam, Adagrad
-from keras.losses import mean_squared_error
-from keras.models import load_model
-from keras import backend as K
-
-from sklearn.metrics import mean_squared_error
-from sklearn.preprocessing import MinMaxScaler  
-
-import matplotlib.pyplot as plt
-
-import os
-
-# Defining Enums
-class Architecture(Enum):
-    LSTM = 0
-    GRU = 1
-    BidirectionalLSTM = 2
-    BidirectionalGRU = 3
-
-class Optimizer(Enum):
-    RMSProp = 0
-    SGD = 1
-    Adam = 2
-    Adagrad = 3
-
-class Loss(Enum):
-    MSE = 0
-    R2 = 1
-
-# Just disables the warning, doesn't enable AVX/FMA
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
-# Suppressing deprecated warnings
-tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
-
-# Allowing Cudnn for LSTM
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
-session = tf.Session(config=config)
-
-window_size = 60
-
-def r2_score(y_true, y_pred):
-    SS_res =  K.sum(K.square(y_true - y_pred))
-    SS_tot = K.sum(K.square(y_true - K.mean(y_true)))
-    return ( 1 - SS_res/(SS_tot + K.epsilon()) )
-
-def getOptimizer(optimizer, lr, momentum):
-    if optimizer == Optimizer.RMSProp.value:
-        return RMSprop(lr=lr)
-    elif optimizer == Optimizer.SGD.value:
-        return SGD(lr=lr, momentum=momentum)
-    elif optimizer == Optimizer.Adam.value:
-        return Adam(lr=lr)
-    elif optimizer == Optimizer.Adagrad.value:
-        return Adagrad(lr=lr)
-
-def getLoss(loss):
-    if loss == Loss.MSE.value:
-        return 'mean_squared_error'
-    elif loss == Loss.R2.value:
-        return r2_score
-
-def getModel(X_train, architecture, isCuda):
-    if architecture == Architecture.LSTM.value:
-        if isCuda:
-            # The LSTM architecture
-            regressor = Sequential()
-            # First LSTM layer with Dropout regularisation
-            regressor.add(CuDNNLSTM(units=50, return_sequences=True, input_shape=(X_train.shape[1],1)))
-            regressor.add(Dropout(0.2))
-            # Second LSTM layer
-            regressor.add(CuDNNLSTM(units=50, return_sequences=True))
-            regressor.add(Dropout(0.2))
-            # Third LSTM layer
-            regressor.add(CuDNNLSTM(units=50, return_sequences=True))
-            regressor.add(Dropout(0.2))
-            # Fourth LSTM layer 
-            regressor.add(CuDNNLSTM(units=50))
-            regressor.add(Dropout(0.2))
-            # The output layer
-            regressor.add(Dense(units=1))
-            return regressor
-        else:
-            # The LSTM architecture
-            regressor = Sequential()
-            # First LSTM layer with Dropout regularisation
-            regressor.add(LSTM(units=50, return_sequences=True, input_shape=(X_train.shape[1],1)))
-            regressor.add(Dropout(0.2))
-            # Second LSTM layer
-            regressor.add(LSTM(units=50, return_sequences=True))
-            regressor.add(Dropout(0.2))
-            # Third LSTM layer
-            regressor.add(LSTM(units=50, return_sequences=True))
-            regressor.add(Dropout(0.2))
-            # Fourth LSTM layer 
-            regressor.add(LSTM(units=50))
-            regressor.add(Dropout(0.2))
-            # The output layer
-            regressor.add(Dense(units=1))
-            return regressor
-    
-    elif architecture == Architecture.GRU.value:
-        if isCuda:
-            # The GRU architecture
-            regressorGRU = Sequential()
-            # First GRU layer with Dropout regularisation
-            regressorGRU.add(CuDNNGRU(units=50, return_sequences=True, input_shape=(X_train.shape[1])))
-            regressorGRU.add(Dropout(0.2))
-            # Second GRU layer
-            regressorGRU.add(CuDNNGRU(units=50, return_sequences=True, input_shape=(X_train.shape[1],1)))
-            regressorGRU.add(Dropout(0.2))
-            # Third GRU layer
-            regressorGRU.add(CuDNNGRU(units=50, return_sequences=True, input_shape=(X_train.shape[1],1)))
-            regressorGRU.add(Dropout(0.2))
-            # Fourth GRU layer
-            regressorGRU.add(CuDNNGRU(units=50))
-            regressorGRU.add(Dropout(0.2))
-            # The output layer
-            regressorGRU.add(Dense(units=1))
-            return regressorGRU
-        else:
-            # The GRU architecture
-            regressorGRU = Sequential()
-            # First GRU layer with Dropout regularisation
-            regressorGRU.add(GRU(units=50, return_sequences=True, input_shape=(X_train.shape[1],1)))
-            regressorGRU.add(Dropout(0.2))
-            # Second GRU layer
-            regressorGRU.add(GRU(units=50, return_sequences=True, input_shape=(X_train.shape[1],1)))
-            regressorGRU.add(Dropout(0.2))
-            # Third GRU layer
-            regressorGRU.add(GRU(units=50, return_sequences=True, input_shape=(X_train.shape[1],1)))
-            regressorGRU.add(Dropout(0.2))
-            # Fourth GRU layer
-            regressorGRU.add(GRU(units=50))
-            regressorGRU.add(Dropout(0.2))
-            # The output layer
-            regressorGRU.add(Dense(units=1))
-            return regressorGRU
-
-    elif architecture == Architecture.BidirectionalLSTM.value:
-        if isCuda:
-            # Bidirectional Model
-            regressorBidirection = Sequential()
-            # First Bidirectional LSTM Layer
-            regressorBidirection.add(Bidirectional(CuDNNLSTM(units=50, return_sequences=True), input_shape=(X_train.shape[1],1)))
-            regressorBidirection.add(Dropout(0.2))
-            # Second Bidirectional LSTM layer
-            regressorBidirection.add(Bidirectional(CuDNNLSTM(units=50, return_sequences=True)))
-            regressorBidirection.add(Dropout(0.2))
-            # Third Bidirectional LSTM layer
-            regressorBidirection.add(Bidirectional(CuDNNLSTM(units=50, return_sequences=True)))
-            regressorBidirection.add(Dropout(0.2))
-            # Fourth Bidirectional LSTM layer
-            regressorBidirection.add(Bidirectional(CuDNNLSTM(units=50)))
-            regressorBidirection.add(Dropout(0.2))
-            # The output layer
-            regressorBidirection.add(Dense(units=1))
-            return regressorBidirection
-        else:
-            # Bidirectional Model
-            regressorBidirection = Sequential()
-            # First Bidirectional LSTM Layer
-            regressorBidirection.add(Bidirectional(LSTM(units=50, return_sequences=True), input_shape=(X_train.shape[1],1)))
-            regressorBidirection.add(Dropout(0.2))
-            # Second Bidirectional LSTM layer
-            regressorBidirection.add(Bidirectional(LSTM(units=50, return_sequences=True)))
-            regressorBidirection.add(Dropout(0.2))
-            # Third Bidirectional LSTM layer
-            regressorBidirection.add(Bidirectional(LSTM(units=50, return_sequences=True)))
-            regressorBidirection.add(Dropout(0.2))
-            # Fourth Bidirectional LSTM layer
-            regressorBidirection.add(Bidirectional(LSTM(units=50)))
-            regressorBidirection.add(Dropout(0.2))
-            # The output layer
-            regressorBidirection.add(Dense(units=1))
-            return regressorBidirection
-
-    elif architecture == Architecture.BidirectionalGRU.value:
-        if isCuda:
-            # Bidirectional Model
-            regressorBidirection = Sequential()
-            # First Bidirectional LSTM Layer
-            regressorBidirection.add(Bidirectional(CuDNNGRU(units=50, return_sequences=True),input_shape=(X_train.shape[1],1)))
-            regressorBidirection.add(Dropout(0.2))
-            # Second Bidirectional LSTM layer
-            regressorBidirection.add(Bidirectional(CuDNNGRU(units=50, return_sequences=True),input_shape=(X_train.shape[1],1)))
-            regressorBidirection.add(Dropout(0.2))
-            # Third Bidirectional LSTM layer
-            regressorBidirection.add(Bidirectional(CuDNNGRU(units=50, return_sequences=True),input_shape=(X_train.shape[1],1)))
-            regressorBidirection.add(Dropout(0.2))
-            # Fourth Bidirectional LSTM layer
-            regressorBidirection.add(Bidirectional(CuDNNGRU(units=50)))
-            regressorBidirection.add(Dropout(0.2))
-            # The output layer
-            regressorBidirection.add(Dense(units=1))
-            return regressorBidirection
-        else:
-            # Bidirectional Model
-            regressorBidirection = Sequential()
-            # First Bidirectional LSTM Layer
-            regressorBidirection.add(Bidirectional(GRU(units=50, return_sequences=True),input_shape=(X_train.shape[1],1)))
-            regressorBidirection.add(Dropout(0.2))
-            # Second Bidirectional LSTM layer
-            regressorBidirection.add(Bidirectional(GRU(units=50, return_sequences=True),input_shape=(X_train.shape[1],1)))
-            regressorBidirection.add(Dropout(0.2))
-            # Third Bidirectional LSTM layer
-            regressorBidirection.add(Bidirectional(GRU(units=50, return_sequences=True),input_shape=(X_train.shape[1],1)))
-            regressorBidirection.add(Dropout(0.2))
-            # Fourth Bidirectional LSTM layer
-            regressorBidirection.add(Bidirectional(GRU(units=50)))
-            regressorBidirection.add(Dropout(0.2))
-            # The output layer
-            regressorBidirection.add(Dense(units=1))
-            return regressorBidirection
-
-        
-def getScaledData(training_set, scale, file_name):
-
-    sc = MinMaxScaler(feature_range=(0,1))
-    training_set_scaled = sc.fit_transform(training_set)
-    
-    pickle_out = open(file_name + '_scaler.pickle', 'wb')
-    pickle.dump(sc, pickle_out)
-    pickle_out.close()
-
-    # creating a data structure with window_size timesteps and 1 output
-    # for each element of training set, we have window_size previous training set elements 
-    X_train = []
-    Y_train = []
-    for i in range(window_size,training_set_scaled.shape[0]):
-        X_train.append(training_set_scaled[i-window_size:i,0])
-        Y_train.append(training_set_scaled[i,0])
-    X_train, Y_train = np.array(X_train), np.array(Y_train)
-
-    # Reshaping X_train for efficient modelling
-    X_train = np.reshape(X_train, (X_train.shape[0],X_train.shape[1],1))
-
-    return X_train, Y_train
-
-def save_plot(test,predicted, file_name):
-    plt.plot(test, color='red',label='Real Stock Price')
-    plt.plot(predicted, color='blue',label='Predicted Stock Price')
-    plt.title('Stock Price Prediction')
-    plt.xlabel('Time')
-    plt.ylabel('Stock Price')
-    plt.legend()
-    plt.savefig(file_name + '.jpg')
-    
 def train(training_set, date, lr, scale, epochs, momentum, optimizer, loss, file_name, architecture, cuda):
-    if(type(training_set) == list and type(date) == list):
+    try:
+        # Data preprocessing
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        training_set_scaled = scaler.fit_transform(np.array(training_set).reshape(-1, 1))
 
-        # Constructing a pandas dataframe for reusability and reference
-        df = pd.DataFrame(data = training_set, columns = ['Feature'], index = pd.to_datetime(date))
-        df.index.names = ['Date']
-        df.index = pd.to_datetime(df.index)
-        df.to_csv(file_name + '.csv')
+        X_train = []
+        y_train = []
+        for i in range(60, len(training_set_scaled)):
+            X_train.append(training_set_scaled[i-60:i, 0])
+            y_train.append(training_set_scaled[i, 0])
+        X_train, y_train = np.array(X_train), np.array(y_train)
+        X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
 
-        training_set = df.values
+        # Building the RNN
+        model = Sequential()
 
-        # Scaling and preprocessing the training set
-        X_train, Y_train = getScaledData(training_set, scale, file_name)
-        
-        # Constructing a stacked LSTM Sequential Model
-        regressor = getModel(X_train, architecture, tf.test.is_gpu_available() if cuda else False)
+        if architecture == 0:  # LSTM
+            model.add(Input(shape=(X_train.shape[1], 1)))
+            model.add(LSTM(units=50, return_sequences=True, recurrent_activation='sigmoid'))
+            model.add(Dropout(0.2))
+            model.add(LSTM(units=50, return_sequences=True, recurrent_activation='sigmoid'))
+            model.add(Dropout(0.2))
+            model.add(LSTM(units=50, return_sequences=True, recurrent_activation='sigmoid'))
+            model.add(Dropout(0.2))
+            model.add(LSTM(units=50, recurrent_activation='sigmoid'))
+            model.add(Dropout(0.2))
+        elif architecture == 1:  # GRU
+            model.add(Input(shape=(X_train.shape[1], 1)))
+            model.add(GRU(units=50, return_sequences=True, recurrent_activation='sigmoid'))
+            model.add(Dropout(0.2))
+            model.add(GRU(units=50, return_sequences=True, recurrent_activation='sigmoid'))
+            model.add(Dropout(0.2))
+            model.add(GRU(units=50, return_sequences=True, recurrent_activation='sigmoid'))
+            model.add(Dropout(0.2))
+            model.add(GRU(units=50, recurrent_activation='sigmoid'))
+            model.add(Dropout(0.2))
+        elif architecture == 2:  # Bidirectional LSTM
+            model.add(Input(shape=(X_train.shape[1], 1)))
+            model.add(Bidirectional(LSTM(units=50, return_sequences=True, recurrent_activation='sigmoid')))
+            model.add(Dropout(0.2))
+            model.add(Bidirectional(LSTM(units=50, return_sequences=True, recurrent_activation='sigmoid')))
+            model.add(Dropout(0.2))
+            model.add(Bidirectional(LSTM(units=50, return_sequences=True, recurrent_activation='sigmoid')))
+            model.add(Dropout(0.2))
+            model.add(Bidirectional(LSTM(units=50, recurrent_activation='sigmoid')))
+            model.add(Dropout(0.2))
+        elif architecture == 3:  # Bidirectional GRU
+            model.add(Input(shape=(X_train.shape[1], 1)))
+            model.add(Bidirectional(GRU(units=50, return_sequences=True, recurrent_activation='sigmoid')))
+            model.add(Dropout(0.2))
+            model.add(Bidirectional(GRU(units=50, return_sequences=True, recurrent_activation='sigmoid')))
+            model.add(Dropout(0.2))
+            model.add(Bidirectional(GRU(units=50, return_sequences=True, recurrent_activation='sigmoid')))
+            model.add(Dropout(0.2))
+            model.add(Bidirectional(GRU(units=50, recurrent_activation='sigmoid')))
+            model.add(Dropout(0.2))
+
+        model.add(Dense(units=1))
 
         # Compiling the RNN
-        regressor.compile(optimizer=getOptimizer(optimizer, lr, momentum), loss=getLoss(loss), metrics=['mse',r2_score])
-           
-        # Fitting to the training set
-        hist = regressor.fit(X_train, Y_train,epochs = epochs, batch_size=32)
+        if optimizer == 0:
+            opt = tf.keras.optimizers.RMSprop(learning_rate=lr, momentum=momentum)
+        elif optimizer == 1:
+            opt = tf.keras.optimizers.SGD(learning_rate=lr, momentum=momentum)
+        elif optimizer == 2:
+            opt = tf.keras.optimizers.Adam(learning_rate=lr)
+        elif optimizer == 3:
+            opt = tf.keras.optimizers.Adagrad(learning_rate=lr)
 
-        #Saving trained model
-        regressor.save(file_name + '.h5')
-        
-        pickle_out = open(file_name + '_trainhist.pickle', 'wb')
-        pickle.dump(hist.history, pickle_out)
-        pickle_out.close()
-        
-        #Deleting model instance
-        del regressor
+        if loss == 0:
+            loss_function = 'mean_squared_error'
+        elif loss == 1:
+            loss_function = 'mean_absolute_error'
 
-        return 100    
-    else:
-        return 110
+        model.compile(optimizer=opt, loss=loss_function)
+
+        # Fitting the RNN to the Training set
+        model.fit(X_train, y_train, epochs=epochs, batch_size=32)
+
+        # Save the model
+        model.save(file_name + '.keras')
+
+        return "Training completed"
+    except Exception as e:
+        print(f"Exception in train function: {e}")
+        raise
 
 def test(testing_set, date, file_name):
-    if(type(testing_set) == list and type(date) == list):
+    try:
+        # Convert testing_set to a numpy array and check length
+        testing_set_array = np.array(testing_set, dtype=float)
+        if testing_set_array.shape[0] < 61:
+            raise ValueError("Not enough data for testing. Need at least 61 points.")
+            
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        testing_set_scaled = scaler.fit_transform(testing_set_array.reshape(-1, 1))
 
-        # Constructing a pandas dataframe for reusability and reference
-        df = pd.DataFrame(data = testing_set, columns = ['Feature'], index = date)
-        df.index.names = ['Date']
-        df.index = pd.to_datetime(df.index)
-        test_set = df['Feature'].values
-        
-        prev_dataset = pd.read_csv(file_name + '.csv', index_col = 'Date', parse_dates=['Date'])
-        
-        regressor = load_model(file_name + '.h5', custom_objects={'r2_score':r2_score})
-
-        file = open(file_name + '_scaler.pickle', 'rb')
-        scaler = pickle.load(file)
-        file.close()
-
-        # Now to get the test set ready in a similar way as the training set.
-        dataset_total = pd.concat((prev_dataset, df),axis=0, sort=False)
-        dataset_total.to_csv(file_name + '.csv')
-
-        inputs = dataset_total[len(dataset_total)-len(testing_set) - window_size:]['Feature'].values
-        inputs = inputs.reshape(-1,1)
-        inputs  = scaler.transform(inputs)
-
-        # Preparing X_test and predicting the prices
         X_test = []
-        for i in range(window_size, inputs.shape[0]):
-            X_test.append(inputs[i - window_size:i,0])
-        X_test = np.array(X_test)
-        X_test = np.reshape(X_test, (X_test.shape[0],X_test.shape[1],1))
-        
-        predicted_stock_price = regressor.predict(X_test)
+        y_test = []
+        for i in range(60, len(testing_set_scaled)):
+            X_test.append(testing_set_scaled[i-60:i, 0])
+            y_test.append(testing_set_scaled[i, 0])
+        X_test, y_test = np.array(X_test), np.array(y_test)
+        X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
+
+        # Log shapes for debugging
+        print(f"X_test shape: {X_test.shape}")
+        print(f"y_test shape: {y_test.shape}")
+
+        # Load the model
+        model = tf.keras.models.load_model(file_name + '.keras')
+
+        # Making predictions
+        predicted_stock_price = model.predict(X_test)
         predicted_stock_price = scaler.inverse_transform(predicted_stock_price)
 
-        #save_plot(test_set, predicted_stock_price, file_name)
+        # Calculate metric using original testing_set_array starting at index 60
+        mse = mean_squared_error(testing_set_array[60:], predicted_stock_price)
+        r2 = r2_score(testing_set_array[60:], predicted_stock_price)
 
-        eval = regressor.evaluate(X_test, scaler.transform(test_set.reshape(-1,1)))
+        return f"Test MSE: {mse}, R2: {r2}"
+    except Exception as e:
+        print(f"Exception in test function: {e}")
+        raise
 
-        pickle_out = open(file_name + '_testhist.pickle', 'wb')
-        pickle.dump(eval, pickle_out)
-        pickle_out.close()
+def evaluate(file_name, testing_set):
+    try:
+        # Convert testing_set to a numpy array and check length as in test()
+        testing_set_array = np.array(testing_set, dtype=float)
+        if testing_set_array.shape[0] < 61:
+            raise ValueError("Not enough data for evaluation. Need at least 61 points.")
 
-        # Deleting model instance
-        del regressor
-        
-        return 100
-    else:
-        return 110
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        testing_set_scaled = scaler.fit_transform(testing_set_array.reshape(-1, 1))
 
-def evaluate(file_name, testing_weight):
+        X_eval = []
+        y_eval = []
+        for i in range(60, len(testing_set_scaled)):
+            X_eval.append(testing_set_scaled[i-60:i, 0])
+            y_eval.append(testing_set_scaled[i, 0])
+        X_eval, y_eval = np.array(X_eval), np.array(y_eval)
+        X_eval = np.reshape(X_eval, (X_eval.shape[0], X_eval.shape[1], 1))
 
-    file = open(file_name + '_trainhist.pickle', 'rb')
-    trainHistory = pickle.load(file)
-    file.close()
+        # Load the model
+        model = tf.keras.models.load_model(file_name + '.keras')
 
-    file = open(file_name + '_testhist.pickle', 'rb')
-    testScores = pickle.load(file)
-    file.close()
+        # Evaluate the model on the evaluation dataset
+        evaluation = model.evaluate(X_eval, y_eval, verbose=0)
 
-    trainScores = [trainHistory[key][-1] for key in trainHistory.keys()]
-    scoreList = [(trainScores[i] * (1 - testing_weight/100) + testScores[i] * (testing_weight/100))/2 for i in range(len(trainScores))]
-    
-    return scoreList
+        return f"Evaluation: {evaluation}"
+    except Exception as e:
+        print(f"Exception in evaluate function: {e}")
+        raise
 
 def predict(file_name, bars):
-    if(bars < window_size):
+    try:
+        # Load the model
+        model = tf.keras.models.load_model(file_name + '.keras')
         
-        prev_dataset = pd.read_csv(file_name + '.csv', index_col = 'Date', parse_dates=['Date'])
+        # Create input data for prediction
+        # We need sequence of 60 points to predict next 'bars' points
+        # For now, using zeros as placeholder - you might want to use actual historical data
+        X_pred = np.zeros((1, 60, 1))  # Shape: (1, timesteps, features)
         
-        regressor = load_model(file_name + '.h5', custom_objects={'r2_score':r2_score})
-
-        file = open(file_name + '_scaler.pickle', 'rb')
-        scaler = pickle.load(file)
-        file.close()
-
-        inputs = prev_dataset[len(prev_dataset) - bars - window_size:]['Feature'].values
-        inputs = inputs.reshape(-1,1)
-        inputs  = scaler.transform(inputs)
+        # Predict future bars
+        predictions = model.predict(X_pred)
         
-        # Preparing X_pred and predicting the prices
-        X_pred = []
-        for i in range(window_size, inputs.shape[0]):
-            X_pred.append(inputs[i - window_size:i,0])
-        X_pred = np.array(X_pred)
-        X_pred = np.reshape(X_pred, (X_pred.shape[0],X_pred.shape[1],1))
-        
-        predicted_stock_price = regressor.predict(X_pred)
-        predicted_stock_price = scaler.inverse_transform(predicted_stock_price)
-        
-        return predicted_stock_price.reshape(predicted_stock_price.shape[0]).tolist()
-    else:
-        return -1
+        # Generate multiple predictions if bars > 1
+        result = []
+        for _ in range(int(bars)):
+            pred = float(predictions[0, 0])  # Convert to float for JSON serialization
+            result.append(pred)
+            
+            # Shift the sequence and add the prediction for next iteration
+            X_pred = np.roll(X_pred, -1)
+            X_pred[0, -1, 0] = pred
+            
+            # Get next prediction
+            predictions = model.predict(X_pred)
+            
+        return result
+    except Exception as e:
+        print(f"Exception in predict function: {e}")
+        raise
